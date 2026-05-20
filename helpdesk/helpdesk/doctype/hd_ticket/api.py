@@ -128,6 +128,8 @@ def get_one(name: str, is_customer_portal: bool = False):
         ),
         "fields": get_meta(template),
         "calls": call_logs,
+        # FIX: include tasks so get_one callers also receive them
+        "tasks": get_task(name),
     }
 
 
@@ -515,7 +517,6 @@ def split_ticket(subject: str, communication_id: str):
         ).format(new_ticket_link, new_ticket),
     )
 
-    # Email on the old ticket that it has been split to new_ticket
     return new_ticket
 
 
@@ -558,8 +559,6 @@ def duplicate_ticket(ticket_doc, subject):
 @frappe.whitelist()
 @agent_only
 def get_ticket_customizations():
-    # get form script
-    # get default ticket template
     custom_fields = frappe.get_all(
         "HD Ticket Template Field",
         filters={"parent": "Default"},
@@ -571,7 +570,6 @@ def get_ticket_customizations():
 
 
 @frappe.whitelist()
-# TODO: make it bette, on mount fetch only once and cache it
 def get_navigation_tickets(ticket: str, current_view: str | None = None):
     """
     Get a list of tickets to navigate
@@ -589,10 +587,7 @@ def get_navigation_tickets(ticket: str, current_view: str | None = None):
             limit=40,
         )
 
-        # Extract just the ticket IDs
-        ticket_ids = [int(ticket), *tickets]
         ticket_ids = [ticket, *tickets]
-        # print("\n\n", ticket_ids, "\n\n")
         return ticket_ids
 
     except Exception as e:
@@ -629,7 +624,6 @@ def get_navigation_filters(ticket: str, current_view: str = None):
             except (json.JSONDecodeError, TypeError):
                 filters = []
 
-    # Base filters - exclude the current ticket
     base_filters = {"name": ["!=", ticket]}
 
     if filters and isinstance(filters, object):
@@ -759,13 +753,8 @@ def get_task(ticket: str):
         frappe.throw(_("Ticket is required"))
 
     ticket = str(ticket).strip()
-
-    frappe.has_permission(
-        "HD Ticket",
-        "read",
-        ticket,
-        throw=True,
-    )
+    # Permission check — read access on the parent ticket is sufficient
+    frappe.has_permission("HD Ticket", "read", ticket, throw=True)
 
     tasks = frappe.get_all(
         "HD Task",
@@ -780,7 +769,7 @@ def get_task(ticket: str):
             "status",
             "priority",
             "start_date",
-            "assigned_to",
+            "assigned",
             "due_date",
             "reference_docname",
             "reference_doctype",
@@ -790,6 +779,9 @@ def get_task(ticket: str):
         ],
         order_by="creation asc",
     )
+
+    for task in tasks:
+        task["name"] = str(task["name"])
 
     return tasks
 

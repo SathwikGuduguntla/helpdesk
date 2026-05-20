@@ -1,19 +1,17 @@
 <template>
   <div
-    class="md:mx-5 md:my-4 flex items-center justify-between text-lg font-medium mx-6 !mb-0 !my-3"
+    class="flex items-center justify-between text-lg font-medium px-6 py-3 border-b border-border-gray-100 bg-white"
   >
-    <div class="flex h-8 items-center text-xl font-semibold text-ink-gray-8">
+    <div class="flex h-8 items-center text-lg font-bold text-ink-gray-9">
       {{ title }}
     </div>
-
-    <!-- Calls dropdown -->
     <Dropdown
-      v-if="title === __('Calls')"
+      v-if="title == 'Calls'"
       :options="callActions"
       @click.stop
       placement="right"
     >
-      <template #default="{ open }">
+      <template v-slot="{ open }">
         <Button variant="subtle" class="flex items-center gap-1">
           <template #prefix>
             <FeatherIcon name="plus" class="h-4 w-4" />
@@ -28,30 +26,6 @@
         </Button>
       </template>
     </Dropdown>
-
-    <!-- Tasks button -->
-    <Button
-      v-else-if="title === __('Tasks')"
-      variant="subtle"
-      @click="emit('new-task')"
-    >
-      <template #prefix>
-        <FeatherIcon name="plus" class="h-4 w-4" />
-      </template>
-      {{ __("New") }}
-    </Button>
-
-    <!-- Emails button -->
-    <Button
-      v-else-if="title === __('Emails')"
-      variant="subtle"
-      @click="emit('new-email')"
-    >
-      <template #prefix>
-        <FeatherIcon name="plus" class="h-4 w-4" />
-      </template>
-      {{ __("New") }}
-    </Button>
   </div>
 
   <CallLogModal
@@ -78,9 +52,9 @@ defineProps({
 
 const emit = defineEmits(["new-task", "new-email"]);
 
+const emit = defineEmits(["new-task"]);
 const makeCall = inject<() => void>("makeCall");
 const refreshTicket = inject<() => void>("refreshTicket");
-const ticket = inject(TicketSymbol);
 const showCallLogModal = ref(false);
 
 const callActions = computed(() => [
@@ -98,3 +72,5 @@ const callActions = computed(() => [
   },
 ]);
 </script>
+
+<style scoped></style>

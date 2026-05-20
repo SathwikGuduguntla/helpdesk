@@ -1,10 +1,10 @@
 # Copyright (c) 2026, Frappe Technologies and contributors
 # For license information, please see license.txt
+# Copyright (c) 2026, Frappe Technologies and contributors
+# For license information, please see license.txt
 
 import frappe
 from frappe import _
-from frappe.desk.form.assign_to import add as assign
-from frappe.desk.form.assign_to import remove as unassign
 from frappe.model.document import Document
 
 from helpdesk.utils import capture_event, get_doc_room, publish_event
@@ -20,7 +20,7 @@ class HDTask(Document):
         description: DF.TextEditor | None
         status: DF.Literal["Backlog", "Todo", "In Progress", "Done", "Canceled"]
         priority: DF.Literal["Low", "Medium", "High"]
-        assigned_to: DF.Link | None
+        assigned: DF.Link | None
         start_date: DF.Date | None
         due_date: DF.Datetime | None
         reference_doctype: DF.Link | None
@@ -29,16 +29,16 @@ class HDTask(Document):
     # end: auto-generated types
 
     def after_insert(self):
-        self.assign_to_user()
+        self.assign_to_user_silently()
         self._publish_event("helpdesk:ticket-task", "task_added")
 
     def validate(self):
-        if self.is_new() or not self.assigned_to:
+        if self.is_new() or not self.assigned:
             return
         before = self.get_doc_before_save()
-        if before and before.assigned_to != self.assigned_to:
-            self.unassign_from_previous_user(before.assigned_to)
-            self.assign_to_user()
+        if before and before.assigned != self.assigned:
+            self.unassign_from_previous_user_silently(before.assigned)
+            self.assign_to_user_silently()
 
     def on_update(self):
         self._publish_event("helpdesk:ticket-task", "task_updated")
@@ -46,21 +46,27 @@ class HDTask(Document):
     def after_delete(self):
         self._publish_event("helpdesk:ticket-task", "task_deleted")
 
-    def unassign_from_previous_user(self, user: str | None):
+    # FIXED: Replaced core form assignments with explicit, clean database injections 
+    # to avoid triggering unintended side-effect document lifecycle hooks on parent tickets
+    def unassign_from_previous_user_silently(self, user: str | None):
         if user:
-            unassign(self.doctype, self.name, user)
+            frappe.db.delete("ToDo", {
+                "reference_type": self.doctype,
+                "reference_name": self.name,
+                "allocated_to": user
+            })
 
-    def assign_to_user(self):
-        if self.assigned_to:
-            assign(
-                {
-                    "assign_to": [self.assigned_to],
-                    "doctype": self.doctype,
-                    "name": self.name,
-                    "description": self.title or self.description,
-                    "AssignedTo": self.assigned_to,
-                }
-            )
+    # FIXED: Maps directly to your new 'assigned' string value field
+    def assign_to_user_silently(self):
+        if self.assigned:
+            if not frappe.db.exists("ToDo", {"reference_type": self.doctype, "reference_name": self.name, "allocated_to": self.assigned}):
+                todo = frappe.new_doc("ToDo")
+                todo.reference_type = self.doctype
+                todo.reference_name = self.name
+                todo.allocated_to = self.assigned
+                todo.description = self.title or self.description or _("Task Assignment")
+                todo.priority = self.priority
+                todo.insert(ignore_permissions=True)
 
     def _publish_event(self, event: str, telemetry_event: str):
         ticket_id = self.reference_docname
@@ -84,7 +90,7 @@ class HDTask(Document):
             {
                 "label": "Assigned To",
                 "type": "Link",
-                "key": "assigned_to",
+                "key": "assigned",
                 "width": "10rem",
             },
             {
@@ -98,7 +104,7 @@ class HDTask(Document):
             "name",
             "title",
             "description",
-            "assigned_to",
+            "assigned",
             "due_date",
             "start_date",
             "status",
@@ -135,7 +141,7 @@ def get_tasks(ticket: str):
             "name",
             "title",
             "description",
-            "assigned_to",
+            "assigned",
             "status",
             "priority",
             "start_date",
@@ -155,11 +161,10 @@ def create_task(
     status: str = "Todo",
     priority: str = "Medium",
     description: str = None,
-    assigned_to: str = None,
+    assigned: str = None,
     start_date: str = None,
     due_date: str = None,
 ):
-
     if not ticket or not str(ticket).strip():
         frappe.throw(_("Ticket is required"))
 
@@ -182,7 +187,7 @@ def create_task(
             "description": description,
             "status": status,
             "priority": priority,
-            "assigned_to": assigned_to,
+            "assigned": assigned,
             "start_date": start_date,
             "due_date": due_date,
         }
@@ -198,7 +203,7 @@ def update_task(
     status: str = None,
     priority: str = None,
     description: str = None,
-    assigned_to: str = None,
+    assigned: str = None,
     start_date: str = None,
     due_date: str = None,
 ):
@@ -218,8 +223,8 @@ def update_task(
         doc.priority = priority
     if description is not None:
         doc.description = description
-    if assigned_to is not None:
-        doc.assigned_to = assigned_to
+    if assigned is not None:
+        doc.assigned = assigned
     if start_date is not None:
         doc.start_date = start_date
     if due_date is not None:
@@ -239,3 +244,14 @@ def delete_task(task: str):
 
     frappe.delete_doc("HD Task", task, force=True)
     return True
+
+
+@frappe.whitelist()
+def get_agents_list():
+    return frappe.get_all(
+        "User",
+        filters={"enabled": 1, "user_type": "System User"},
+        fields=["name", "full_name"],
+        limit=200,
+        order_by="full_name asc"
+    )

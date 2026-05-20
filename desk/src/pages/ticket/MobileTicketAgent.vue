@@ -35,11 +35,9 @@
       class="flex h-12 items-center justify-between py-[7px] px-3 border-b"
       v-if="ticket.doc?.name"
     >
-      <!-- left side -->
       <div class="flex items-center gap-2 max-w-[50%]">
         <AssignTo :hide-label="true" />
       </div>
-      <!-- right side -->
       <div class="flex items-center gap-2">
         <CustomActions
           v-if="mobileCustomActions.length"
@@ -58,25 +56,21 @@
           >
             <template #tab-panel="{ tab }">
               <div v-if="tab.name === 'details'">
-                <!-- ticket contact info -->
                 <TicketAgentContact
                   v-if="contact.data"
                   :contact="contact.data"
                   :ticketId="ticket.doc?.name"
                   @email:open="communicationAreaRef.toggleEmailBox()"
                 />
-                <!-- feedback component -->
                 <TicketFeedback
                   v-if="ticket.doc?.feedback_rating"
                   class="border-b px-6 py-3 text-base text-ink-gray-5"
                   :ticket="ticket.doc"
                 />
-                <!-- SLA Section -->
                 <h3 class="px-6 pt-3 font-semibold text-base">
                   {{ __("SLA") }}
                 </h3>
                 <TicketAgentDetails :ticket="ticket.doc" />
-                <!-- Ticket Fields -->
                 <h3 class="px-6 pt-3 font-semibold text-base">
                   {{ __("Details") }}
                 </h3>
@@ -90,11 +84,10 @@
                 />
               </div>
 
-              <!-- Rest Activities -->
               <TicketAgentActivities
                 v-else
                 ref="ticketAgentActivitiesRef"
-                :activities="filterActivities(tab.name)"
+                :activities="filterActivities(tab.name as TicketTab)"
                 :title="tab.label"
                 :ticket-status="ticket.doc?.status"
                 @update="() => reloadTicket(props.ticketId)"
@@ -458,7 +451,7 @@ const tabs: ComputedRef<TabObject[]> = computed(() => {
       name: "task",
       label: __("Tasks"),
       icon: TaskIcon,
-    },
+    }
   ];
 
   if (isCallingEnabled.value) {
@@ -474,85 +467,99 @@ const tabs: ComputedRef<TabObject[]> = computed(() => {
 const { tabIndex, changeTabTo } = useActiveTabManager(tabs);
 
 const _activities = computed(() => {
-  if (!activities.value?.data) {
+  const sourceData = activities.value?.data || activities.data;
+  if (!sourceData) {
     return [];
   }
 
-  const emailProps = activities.value.data.communications.map(
-    (email: any, idx: number) => ({
-      subject: email.subject,
-      content: email.content,
-      sender: { name: email.user.email, full_name: email.user.name },
-      to: email.recipients,
-      type: "email",
-      key: email.creation,
-      cc: email.cc,
-      bcc: email.bcc,
-      creation: email.communication_date || email.creation,
-      attachments: email.attachments,
-      name: email.name,
-      deliveryStatus: email.delivery_status,
-      isFirstEmail: idx === 0,
-    })
+  const emailProps = (sourceData.communications || []).map(
+    (email, idx: number) => {
+      return {
+        subject: email.subject,
+        content: email.content,
+        sender: { name: email.user?.email || email.sender, full_name: email.user?.name || email.sender },
+        to: email.recipients,
+        type: "email",
+        key: email.creation,
+        cc: email.cc,
+        bcc: email.bcc,
+        creation: email.communication_date || email.creation,
+        attachments: email.attachments,
+        name: email.name,
+        deliveryStatus: email.delivery_status,
+        isFirstEmail: idx === 0,
+      };
+    }
   );
 
-  const commentProps = activities.value.data.comments.map((comment: any) => ({
-    name: comment.name,
-    type: "comment",
-    key: comment.creation,
-    commentedBy: comment.commented_by,
-    commenter: comment.user.name,
-    creation: comment.creation,
-    content: comment.content,
-    attachments: comment.attachments,
-  }));
+  const commentProps = (sourceData.comments || []).map((comment) => {
+    return {
+      name: comment.name,
+      type: "comment",
+      key: comment.creation,
+      commentedBy: comment.commented_by,
+      commenter: comment.user?.name || comment.commented_by,
+      creation: comment.creation,
+      content: comment.content,
+      attachments: comment.attachments,
+    };
+  });
 
-  activities.value.data.history.map((h: any) => {
+  (sourceData.history || []).forEach((h: any) => {
     if (h.action && h.owner && h.action.includes(h.owner)) {
       h.action = h.action.replace(h.owner, "themselves");
     }
-    return h;
   });
 
   const historyProps = [
-    ...activities.value.data.history,
-    ...activities.value.data.views,
-  ].map((h: any) => ({
-    type: "history",
-    key: h.creation,
-    content: h.action ? h.action : __("viewed this"),
-    creation: h.creation,
-    user: h.user.name + " ",
-  }));
+    ...(sourceData.history || []),
+    ...(sourceData.views || []),
+  ].map((h) => {
+    return {
+      type: "history",
+      key: h.creation,
+      content: h.action ? h.action : __("viewed this"),
+      creation: h.creation,
+      user: (h.user?.name || "") + " ",
+    };
+  });
 
-  const callProps = activities.value.data.calls.map((call: any) => ({
-    ...call,
-    type: "call",
-    name: call.name,
-    key: call.creation,
-    call_type: call.type,
-    content: `${call.caller || "Unknown"} made a call to ${
-      call.receiver || "Unknown"
-    }`,
-    duration: call.duration ? call.duration + "s" : "0s",
-  }));
+  const callProps = (sourceData.calls || []).map((call) => {
+    return {
+      ...call,
+      type: "call",
+      name: call.name,
+      key: call.creation,
+      call_type: call.type,
+      content: `${call.caller || "Unknown"} made a call to ${
+        call.receiver || "Unknown"
+      }`,
+      duration: call.duration ? call.duration + "s" : "0s",
+    };
+  });
 
-  // TASKS
-  const taskProps = (activities.value.data.tasks || []).map((task: any) => ({
-    type: "task",
-    key: task.name,
-    name: task.name,
-    title: task.title,
-    status: task.status,
-    AssignTo: task.assigned_to,
-    priority: task.priority,
-    description: task.description,
-    due_date: task.due_date,
-    reference_doctype: task.reference_doctype,
-    reference_docname: task.reference_docname,
-    creation: task.creation,
-    owner: task.owner,
-  }));
+  // FIXED: Built the safe task tracking loop mapping layer cleanly for mobile devices
+  const taskProps = (sourceData.tasks || []).map((task: any) => {
+    let cleanDueDate = "";
+    if (task.due_date) {
+      cleanDueDate = String(task.due_date).split(" ")[0];
+    }
+    return {
+      type: "task",
+      key: task.name,
+      name: task.name,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      due_date: cleanDueDate,
+      assigned: task.assigned,
+      reference_doctype: task.reference_doctype || "HD Ticket",
+      reference_docname: task.reference_docname || String(ticket.value?.doc?.name || ""),
+      creation: task.creation,
+      owner: task.owner,
+    };
+  });
 
   const sorted = [
     ...emailProps,
@@ -578,8 +585,8 @@ const _activities = computed(() => {
           nextActivity &&
           nextActivity.user === currentActivity.user &&
           nextActivity.content !== __("viewed this") &&
-          !nextActivity.content?.includes("assigned") &&
-          !nextActivity.content?.includes("unassigned")
+          !nextActivity.content.includes("assigned") &&
+          !nextActivity.content.includes("unassigned")
         ) {
           currentActivity.relatedActivities.push(nextActivity);
         } else {
@@ -594,10 +601,10 @@ const _activities = computed(() => {
     i++;
   }
 
-  if (ticket.value.doc?.feedback_rating === 0) {
+  if ((ticket.value?.doc?.feedback_rating || 0) === 0) {
     return data;
   }
-
+  
   const feedbackActivity: FeedbackActivity[] = [
     {
       type: "feedback",
@@ -616,9 +623,10 @@ const _activities = computed(() => {
   return data;
 });
 
+// FIXED: Cleaned up the filter activities routing check options mapping logic to split tasks
 function filterActivities(eventType: TicketTab) {
   if (eventType === "activity") {
-    return _activities.value;
+    return _activities.value.filter((a: any) => a.type !== "task");
   }
   return _activities.value.filter(
     (activity: any) => activity.type === eventType
@@ -626,7 +634,7 @@ function filterActivities(eventType: TicketTab) {
 }
 
 onMounted(() => {
-  document.title = props.ticketId;
+  document.title = String(props.ticketId);
 });
 
 onUnmounted(() => {

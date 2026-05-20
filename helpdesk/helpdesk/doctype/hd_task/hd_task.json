@@ -14,7 +14,7 @@
   "reference_doctype",
   "reference_docname",
   "column_break_cqua",
-  "assigned_to",
+  "assigned",
   "status",
   "due_date",
   "section_break_bzhd",
@@ -44,13 +44,6 @@
   {
    "fieldname": "column_break_cqua",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "assigned_to",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Assigned To",
-   "options": "User"
   },
   {
    "fieldname": "status",
@@ -86,12 +79,19 @@
    "fieldtype": "Dynamic Link",
    "label": "Reference Doc",
    "options": "reference_doctype"
+  },
+  {
+   "fieldname": "assigned",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Assigned",
+   "options": "User"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-14 13:56:06.610441",
+ "modified": "2026-05-20 01:05:34.694997",
  "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Task",

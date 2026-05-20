@@ -12,8 +12,11 @@
         :activities="filterActivities(tab.name as TicketTab)"
         :title="tab.label"
         :ticket-status="ticket.doc.status"
-        :ticket-id="String(ticket.doc?.name || '')"
-        @email:reply="(e) => communicationAreaRef?.replyToEmail(e)"
+        @email:reply="
+          (e) => {
+            communicationAreaRef?.replyToEmail(e);
+          }
+        "
         @update="
           () => {
             activities.reload();
@@ -23,9 +26,11 @@
       />
       <!-- <div v-else class="flex items-center justify-center flex-col flex-1">
         <Button :loading="true" variant="ghost" size="2xl" />
+        <p class="text-xl font-medium text-ink-gray-5">Loading...</p>
+      </div> -->
     </template>
   </Tabs>
-
+  <!-- Comm Area -->
   <CommunicationArea
     ref="communicationAreaRef"
     :ticketId="String(ticket.doc?.name)"
@@ -81,10 +86,21 @@ const { isCallingEnabled } = storeToRefs(telephonyStore);
 
 const tabs: ComputedRef<TabObject[]> = computed(() => {
   const _tabs: TabObject[] = [
-    { name: "activity", label: __("Activity"), icon: ActivityIcon },
-    { name: "email", label: __("Emails"), icon: EmailIcon },
-    { name: "comment", label: __("Comments"), icon: CommentIcon },
-    { name: "task", label: __("Tasks"), icon: TaskIcon },
+    {
+      name: "activity",
+      label: "Activity",
+      icon: ActivityIcon,
+    },
+    {
+      name: "email",
+      label: "Emails",
+      icon: EmailIcon,
+    },
+    {
+      name: "comment",
+      label: "Comments",
+      icon: CommentIcon,
+    },
   ];
   if (isCallingEnabled.value) {
     _tabs.push({ name: "call", label: __("Calls"), icon: PhoneIcon });
@@ -128,7 +144,11 @@ const _activities = computed(() => {
     })
   );
 
-  (activities.value.data.history || []).forEach((h: any) => {
+  activities.value.data.history.map((h) => {
+    // }
+    h.action;
+    h.owner;
+    // if h.actions includes h.owner, replace it with 'themselves'
     if (h.action && h.owner && h.action.includes(h.owner)) {
       h.action = h.action.replace(h.owner, "themselves");
     }
@@ -145,33 +165,19 @@ const _activities = computed(() => {
     user: (h.user?.name || "") + " ",
   }));
 
-  const callProps = (activities.value.data.calls || []).map((call: any) => ({
-    ...call,
-    type: "call",
-    key: call.creation,
-    call_type: call.type,
-    content: `${call.caller || "Unknown"} made a call to ${
-      call.receiver || "Unknown"
-    }`,
-    duration: call.duration ? call.duration + "s" : "0s",
-  }));
-
-  const taskProps = (activities.value.data.tasks || []).map((task: any) => ({
-    type: "task",
-    key: task.name,
-    name: task.name,
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    priority: task.priority,
-    due_date: task.due_date,
-    assigned_to: task.assigned_to,
-    reference_doctype: task.reference_doctype || "HD Ticket",
-    reference_docname:
-      task.reference_docname || String(ticket.value?.doc?.name || ""),
-    creation: task.creation,
-    owner: task.owner,
-  }));
+  const callProps = activities.value.data.calls.map((call) => {
+    return {
+      ...call,
+      type: "call",
+      name: call.name,
+      key: call.creation,
+      call_type: call.type,
+      content: `${call.caller || "Unknown"} made a call to ${
+        call.receiver || "Unknown"
+      }`,
+      duration: call.duration ? call.duration + "s" : "0s",
+    };
+  });
 
   const sorted = [
     ...emailProps,

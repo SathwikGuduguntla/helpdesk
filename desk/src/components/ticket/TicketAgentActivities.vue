@@ -1,44 +1,10 @@
 <template>
-  <div
-    class="flex items-center justify-between px-5 py-3 border-b flex-shrink-0"
-  >
-    <h3 class="text-base font-semibold text-ink-gray-9">{{ title }}</h3>
-
-    <Button
-      v-if="title === __('Tasks')"
-      variant="subtle"
-      @click="showNewTaskModal = true"
-    >
-      <template #prefix><FeatherIcon name="plus" class="h-4 w-4" /></template>
-      {{ __("New") }}
-    </Button>
-
-    <Button
-      v-else-if="title === __('Emails')"
-      variant="subtle"
-      @click="emit('new-email')"
-    >
-      <template #prefix><FeatherIcon name="plus" class="h-4 w-4" /></template>
-      {{ __("New") }}
-    </Button>
-  </div>
-
-  <TaskboxEditor
-    v-model="showNewTaskModal"
-    :ticket-id="resolvedTicketId"
-    @submit="
-      () => {
-        showNewTaskModal = false;
-        emit('update');
-      }
-    "
-  />
-
+  <ActivityHeader :title="title" />
   <FadedScrollableDiv
     class="flex flex-col flex-1 overflow-y-auto"
     :mask-length="20"
   >
-    <div v-if="activities.length" class="activities flex-1 h-full mt-0.5">
+    <div v-if="localActivities.length" class="activities flex-1 h-full mt-0.5">
       <div
         v-for="(activity, i) in localActivities"
         :key="activity.key"
@@ -52,8 +18,8 @@
           <div
             class="relative flex justify-center after:absolute after:left-[50%] after:top-3 after:-z-10 after:border-l after:border-gray-200"
             :class="[
-              i !== activities.length - 1 && 'after:h-full',
-              !['email', 'feedback', 'call', 'comment', 'task'].includes(
+              i != activities.length - 1 && 'after:h-full',
+              !['email', 'feedback', 'call', 'comment'].includes(
                 activity.type
               ) && 'after:top-6',
             ]"
@@ -85,6 +51,10 @@
                 name="check-square"
                 class="text-gray-600 left-[7.5px] size-4"
               />
+              <TaskIcon
+                v-else-if="activity.type === 'task'"
+                class="text-gray-600 absolute left-[7.5px] size-4"
+              />
               <FeatherIcon
                 v-else-if="activity.type === 'call'"
                 :name="
@@ -108,8 +78,8 @@
           <div
             class="mb-4 flex flex-1"
             :class="[
-              i === activities.length - 1 && 'mb-5',
-              !['email', 'feedback', 'call', 'comment', 'task'].includes(
+              i == activities.length - 1 && 'mb-5',
+              !['email', 'feedback', 'call', 'comment'].includes(
                 activity.type
               ) && 'mt-[2px]',
             ]"
@@ -128,15 +98,7 @@
               :activity="activity"
               @update="() => emit('update')"
             />
-            <!-- TASK -->
-            <div v-else-if="activity.type === 'task'" class="flex-1">
-              <Taskbox
-                :activity="activity"
-                :reload-tasks="() => emit('update')"
-                @update="() => emit('update')"
-              />
-            </div>
-            <HistoryBox
+            <CallArea
               v-else-if="activity.type === 'call'"
               :activity="activity"
             />
@@ -163,9 +125,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, inject, nextTick, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { Avatar, FeatherIcon } from "frappe-ui";
 import { FadedScrollableDiv } from "@/components";
 import {
   ActivityIcon,
@@ -210,39 +169,26 @@ const emit = defineEmits(["email:reply", "update", "new-email"]);
 const route = useRoute();
 const router = useRouter();
 const { getUser } = useUserStore();
-
-const showNewTaskModal = ref(false);
-
-// Prefer the prop; fall back to inject for backward-compat with older callers
-const injectedTicketId = inject<string | number>("ticketId", "");
-const resolvedTicketId = computed(() =>
-  String(props.ticketId || injectedTicketId || "").trim()
-);
-
-const localActivities = ref([...props.activities]);
-watch(
-  () => props.activities,
-  (val) => {
-    localActivities.value = [...val];
-  },
-  { immediate: true, deep: true }
-);
+const makeCall = inject<() => void>("makeCall");
 
 const emptyText = computed(() => {
-  if (props.title === __("Emails")) return "No email communications";
-  if (props.title === __("Comments")) return "No comments found";
-  if (props.title === __("Calls")) return "No calls made";
-  if (props.title === __("Tasks")) return "No tasks found";
+  if (props.title === "Emails") return "No email communications";
+  if (props.title === "Comments") return "No comments found";
+  if (props.title === "Calls") return "No calls made";
+
   return "No activity found";
 });
 
 const emptyTextIcon = computed(() => {
-  let icon: any = ActivityIcon;
-  if (props.title === __("Emails")) icon = EmailIcon;
-  else if (props.title === __("Comments")) icon = CommentIcon;
-  else if (props.title === __("Calls")) icon = PhoneIcon;
-  else if (props.title === __("Tasks")) icon = TaskIcon;
-  return h(icon, { class: "text-gray-500" });
+  let icon = ActivityIcon;
+  if (props.title == "Emails") {
+    icon = EmailIcon;
+  } else if (props.title == "Comments") {
+    icon = CommentIcon;
+  } else if (props.title == "Calls") {
+    icon = PhoneIcon;
+  }
+  return h(icon, { class: "text-ink-gray-4" });
 });
 
 onMounted(() => {
