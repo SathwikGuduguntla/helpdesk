@@ -184,6 +184,11 @@ const portalRoutes = [
     },
   },
   {
+    path: "/tasks",
+    name: "TaskList",
+    component: () => import("@/pages/desk/Tasks/Tasks.vue"),
+  },
+  {
     path: "/kb-public/articles/:articleId",
     name: "ArticlePublic",
     component: () => import("@/pages/knowledge-base/Article.vue"),
